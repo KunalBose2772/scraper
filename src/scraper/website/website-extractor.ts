@@ -1,19 +1,17 @@
-import { Page } from 'playwright';
 import { WebsiteDetails } from '../../types';
 import { Logger } from '../../utils/logger';
+import { DEFAULTS } from '../../constants';
 
 export class WebsiteExtractor {
-  private page: Page;
-
-  constructor(page: Page) {
-    this.page = page;
-  }
+  // We no longer need to hold a Playwright Page instance,
+  // but we keep the constructor signature for backwards compatibility.
+  constructor(page?: any) {}
 
   /**
-   * Visits the provided website URL and extracts contact/social information.
-   * If navigation fails or times out, returns empty details instead of throwing.
+   * Visits the provided website URL using a lightweight native HTTP GET request.
+   * Extracts emails, phones, and social media handles from the raw HTML.
    */
-  public async extract(url: string, timeout: number = 15000): Promise<WebsiteDetails> {
+  public async extract(url: string, timeout: number = 8000): Promise<WebsiteDetails> {
     const details: WebsiteDetails = {
       emails: [],
       phones: [],
@@ -30,73 +28,76 @@ export class WebsiteExtractor {
 
     if (!url) return details;
 
-    // Clean up URL
     let targetUrl = url.trim();
     if (!/^https?:\/\//i.test(targetUrl)) {
       targetUrl = `http://${targetUrl}`;
     }
 
-    Logger.info(`Visiting website: "${targetUrl}"...`);
+    Logger.info(`Fetching website contacts via HTTP: "${targetUrl}"...`);
 
     try {
-      // Navigate to the website with a strict timeout
-      await this.page.goto(targetUrl, { waitUntil: 'domcontentloaded', timeout });
-      
-      // Let any scripts load briefly
-      await this.page.waitForTimeout(1000);
+      // Fetch the webpage HTML with a strict timeout and user-agent
+      const response = await fetch(targetUrl, {
+        method: 'GET',
+        headers: {
+          'User-Agent': DEFAULTS.USER_AGENT,
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+          'Accept-Language': 'en-US,en;q=0.5'
+        },
+        // Native AbortSignal timeout to prevent hanging on slow servers
+        signal: AbortSignal.timeout(timeout)
+      });
 
-      // Extract content from page
-      const htmlContent = await this.page.content();
-      const pageText = await this.page.innerText('body').catch(() => '');
+      if (!response.ok) {
+        Logger.debug(`Website HTTP status error ${response.status} for: ${targetUrl}`);
+        return details;
+      }
+
+      const htmlContent = await response.text();
 
       // 1. Extract Emails
       const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,6}/g;
       const emailsFound = new Set<string>();
-      
-      // Check mailto: links first (highly accurate)
-      const mailtoElements = this.page.locator('a[href^="mailto:"]');
-      const mailtoCount = await mailtoElements.count();
-      for (let i = 0; i < mailtoCount; i++) {
-        const href = await mailtoElements.nth(i).getAttribute('href');
-        if (href) {
-          const email = href.replace(/mailto:/i, '').split('?')[0].trim();
-          if (this.isValidEmail(email)) {
-            emailsFound.add(email);
-          }
+
+      // Search for mailto links in the HTML
+      const mailtoRegex = /href=["']mailto:([^"'\s?]+)/gi;
+      let mailtoMatch;
+      while ((mailtoMatch = mailtoRegex.exec(htmlContent)) !== null) {
+        const email = mailtoMatch[1].trim();
+        if (this.isValidEmail(email)) {
+          emailsFound.add(email);
         }
       }
 
-      // Fallback: regex search on HTML content
+      // Regex fallback on complete HTML string
       const htmlEmails = htmlContent.match(emailRegex) || [];
       for (const email of htmlEmails) {
         if (this.isValidEmail(email)) {
-          emailsFound.add(email.trim());
+          emailsFound.add(email.toLowerCase().trim());
         }
       }
       details.emails = Array.from(emailsFound);
 
-      // 2. Extract Phones
+      // 2. Extract Phone Numbers
       const phoneRegex = /(\+?\d{1,4}[-.\s]??\(?\d{1,3}?\)?[-.\s]??\d{1,4}[-.\s]??\d{1,4}[-.\s]??\d{1,9})/g;
       const phonesFound = new Set<string>();
 
-      // Check tel: links first
-      const telElements = this.page.locator('a[href^="tel:"]');
-      const telCount = await telElements.count();
-      for (let i = 0; i < telCount; i++) {
-        const href = await telElements.nth(i).getAttribute('href');
-        if (href) {
-          const phone = href.replace(/tel:/i, '').split('?')[0].trim();
-          if (phone.length >= 7) {
-            phonesFound.add(phone);
-          }
+      // Search for tel links in the HTML
+      const telRegex = /href=["']tel:([^"'\s?]+)/gi;
+      let telMatch;
+      while ((telMatch = telRegex.exec(htmlContent)) !== null) {
+        const phone = telMatch[1].trim();
+        if (phone.length >= 7) {
+          phonesFound.add(phone);
         }
       }
 
-      // Regex search in page text (with safety filters to avoid matching random long numbers)
-      const textPhones = pageText.match(phoneRegex) || [];
+      // Match numbers in text body
+      // We strip HTML tags first to search raw page text and avoid matching class names/CSS digits
+      const rawText = htmlContent.replace(/<[^>]*>/g, ' ');
+      const textPhones = rawText.match(phoneRegex) || [];
       for (const phone of textPhones) {
         const cleaned = phone.replace(/[-\s.()]/g, '');
-        // Exclude standard year numbers, coordinates, zipcodes, etc.
         if (cleaned.length >= 7 && cleaned.length <= 15 && !/^(19|20)\d{2}$/.test(cleaned)) {
           phonesFound.add(phone.trim());
         }
@@ -104,13 +105,11 @@ export class WebsiteExtractor {
       details.phones = Array.from(phonesFound);
 
       // 3. Extract Social Media Links
-      const links = this.page.locator('a[href]');
-      const linkCount = await links.count();
-
-      for (let i = 0; i < linkCount; i++) {
-        const href = await links.nth(i).getAttribute('href');
-        if (!href) continue;
-
+      // Search for href links in HTML matching major social networks
+      const hrefRegex = /href=["'](https?:\/\/[^"'\s>]+)/gi;
+      let hrefMatch;
+      while ((hrefMatch = hrefRegex.exec(htmlContent)) !== null) {
+        const href = hrefMatch[1];
         const hrefLower = href.toLowerCase();
 
         if (hrefLower.includes('instagram.com/') && !details.socialMedia.instagram) {
@@ -130,22 +129,18 @@ export class WebsiteExtractor {
         }
       }
 
-    } catch (error) {
-      Logger.warn(`Failed to scrape website contact/socials from: ${targetUrl}`, error);
+    } catch (error: any) {
+      Logger.debug(`Failed to fetch website contacts via HTTP for ${targetUrl}: ${error.message || error}`);
     }
 
     return details;
   }
 
-  /**
-   * Simple email validation helper to avoid capturing trash strings.
-   */
   private isValidEmail(email: string): boolean {
     const parts = email.split('@');
     if (parts.length !== 2) return false;
-    
-    // Ignore common false positives like images, extensions, etc.
-    const invalidExtensions = ['.png', '.jpg', '.jpeg', '.gif', '.svg', '.webp'];
+
+    const invalidExtensions = ['.png', '.jpg', '.jpeg', '.gif', '.svg', '.webp', '.css', '.js'];
     const emailLower = email.toLowerCase();
     for (const ext of invalidExtensions) {
       if (emailLower.endsWith(ext)) return false;
@@ -154,13 +149,9 @@ export class WebsiteExtractor {
     return true;
   }
 
-  /**
-   * Cleans social media URLs by stripping out trackers or formatting relative URLs.
-   */
   private cleanSocialLink(href: string): string {
     try {
       let cleanUrl = href.trim();
-      // Remove query parameters like fbclid, ref, etc.
       if (cleanUrl.includes('?')) {
         cleanUrl = cleanUrl.split('?')[0];
       }

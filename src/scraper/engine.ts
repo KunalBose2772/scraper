@@ -109,20 +109,14 @@ export async function runSingleScrape(
         const detailExtractor = new DetailExtractor(mainPage);
         const details = await detailExtractor.extract(listing, config.timeout);
 
-        // Website contact extraction in a separate tab
+        // Website contact extraction via native HTTP fetch (no browser tab)
         if (details.website) {
           onProgress?.('extracting', i + 1, state.listingsCollected.length, `Crawling website contacts for: "${listing.name}"`);
-          let webPage = null;
           try {
-            webPage = await browserManager.newPage();
-            const websiteExtractor = new WebsiteExtractor(webPage);
+            const websiteExtractor = new WebsiteExtractor();
             details.websiteDetails = await websiteExtractor.extract(details.website);
           } catch (webErr) {
             Logger.warn(`[${progressStr}] Failed to extract website details: ${webErr}`);
-          } finally {
-            if (webPage) {
-              await webPage.close().catch(() => {});
-            }
           }
         }
 
