@@ -1,0 +1,26 @@
+{
+  "name": "google-maps-scraper-engine-v2",
+  "version": "2.0.0",
+  "description": "Industrial-grade Google Maps Scraping Engine in Playwright & TypeScript",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "ts-node src/index.ts",
+    "dev": "ts-node src/index.ts",
+    "dashboard": "ts-node src/dashboard/server.ts",
+    "test-run": "ts-node src/index.ts --keyword \"Restaurant\" --location \"Mumbai\" --max-results 10 --format \"ALL\" --headless false"
+  },
+  "dependencies": {
+    "cors": "^2.8.6",
+    "express": "^5.2.1",
+    "playwright": "^1.42.1",
+    "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
+    "@types/node": "^20.11.24",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.3.3"
+  }
+}

@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Google Maps Scraper Engine v2 Dashboard</title>
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <!-- CSS Stylesheet -->
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body class="dark-mode">
+  <div class="background-glows">
+    <div class="glow glow-1"></div>
+    <div class="glow glow-2"></div>
+  </div>
+
+  <div class="app-container">
+    <!-- Header -->
+    <header class="app-header">
+      <div class="logo-area">
+        <div class="logo-icon">
+          <i data-lucide="map-pin"></i>
+        </div>
+        <div class="logo-text">
+          <h1>G-Maps Scraper</h1>
+          <span class="subtext">Industrial Automation Engine v2</span>
+        </div>
+      </div>
+      <div class="header-status">
+        <div id="global-status-badge" class="status-badge status-idle">
+          <span class="status-dot"></span>
+          <span class="status-text">SYSTEM READY</span>
+        </div>
+      </div>
+    </header>
+
+    <!-- Main Workspace -->
+    <main class="app-main">
+      
+      <!-- Control Panel -->
+      <section class="panel control-panel">
+        <div class="panel-header">
+          <i data-lucide="sliders"></i>
+          <h2>Control Board</h2>
+        </div>
+        
+        <form id="scrape-form" class="control-form">
+          <!-- Keywords Section -->
+          <div class="form-group">
+            <label for="keywords-input">
+              Keywords / Business Types
+              <span class="tooltip" title="Add business types to scrape. Press enter to add multiple.">?</span>
+            </label>
+            <div class="tag-input-container">
+              <input type="text" id="keywords-input" placeholder="Type a keyword and press Enter...">
+              <div id="keywords-tags" class="tags-list"></div>
+            </div>
+            <div class="suggestions-label">Suggestions (Click to toggle):</div>
+            <div class="suggestions-list" id="keyword-suggestions">
+              <span class="suggest-tag" data-val="Restaurant">Restaurants</span>
+              <span class="suggest-tag" data-val="Hospital">Hospitals</span>
+              <span class="suggest-tag" data-val="Hotel">Hotels</span>
+              <span class="suggest-tag" data-val="School">Schools</span>
+              <span class="suggest-tag" data-val="Gym">Gyms</span>
+              <span class="suggest-tag" data-val="Real Estate Agency">Real Estate</span>
+            </div>
+          </div>
+
+          <!-- Locations Section -->
+          <div class="form-group">
+            <label for="locations-input">
+              Target Locations
+              <span class="tooltip" title="Add cities/regions to scrape. Press enter to add multiple.">?</span>
+            </label>
+            <div class="tag-input-container">
+              <input type="text" id="locations-input" placeholder="Type a location and press Enter...">
+              <div id="locations-tags" class="tags-list"></div>
+            </div>
+            <div class="suggestions-label">Suggestions (Click to toggle):</div>
+            <div class="suggestions-list" id="location-suggestions">
+              <span class="suggest-tag" data-val="Mumbai">Mumbai</span>
+              <span class="suggest-tag" data-val="Delhi">Delhi</span>
+              <span class="suggest-tag" data-val="Ranchi">Ranchi</span>
+              <span class="suggest-tag" data-val="Jamshedpur">Jamshedpur</span>
+              <span class="suggest-tag" data-val="Bangalore">Bangalore</span>
+              <span class="suggest-tag" data-val="Kolkata">Kolkata</span>
+            </div>
+          </div>
+
+          <!-- Engine Parameters -->
+          <div class="grid-form-fields">
+            <div class="form-group">
+              <label for="max-results">Max Results per Job</label>
+              <div class="number-input-wrapper">
+                <input type="number" id="max-results" min="5" max="500" value="50">
+                <span class="input-helper">listings</span>
+              </div>
+            </div>
+            <div class="form-group inline-toggle">
+              <label class="toggle-switch">
+                <input type="checkbox" id="headless-toggle" checked>
+                <span class="slider"></span>
+              </label>
+              <span class="toggle-label">Run Headless (Fast)</span>
+            </div>
+          </div>
+
+          <!-- Action Buttons -->
+          <div class="form-actions">
+            <button type="submit" id="start-btn" class="btn btn-primary">
+              <i data-lucide="play"></i>
+              <span>Start Batch Scrape</span>
+            </button>
+            <button type="button" id="stop-btn" class="btn btn-danger" disabled>
+              <i data-lucide="square"></i>
+              <span>Stop Run</span>
+            </button>
+          </div>
+        </form>
+      </section>
+
+      <!-- Progress Monitor & Queue -->
+      <section class="panel queue-panel">
+        <div class="panel-header">
+          <i data-lucide="layers"></i>
+          <h2>Batch Queue & Downloads</h2>
+          <button id="download-combined-btn" class="btn btn-secondary btn-glow" disabled>
+            <i data-lucide="download"></i>
+            <span>Combined Excel</span>
+          </button>
+        </div>
+
+        <div class="batch-progress-header" style="display: none;" id="batch-progress-bar-container">
+          <div class="progress-info">
+            <span class="progress-label" id="batch-progress-label">Batch Progress: 0/0 Completed</span>
+            <span class="progress-percentage" id="batch-progress-percent">0%</span>
+          </div>
+          <div class="progress-track">
+            <div class="progress-bar" id="batch-progress-fill" style="width: 0%;"></div>
+          </div>
+        </div>
+
+        <!-- Task Grid Container -->
+        <div class="queue-list" id="queue-list">
+          <div class="empty-state">
+            <i data-lucide="inbox"></i>
+            <p>Queue is empty. Select keywords, locations, and click Start.</p>
+          </div>
+        </div>
+      </section>
+
+    </main>
+
+    <!-- Console Log Section -->
+    <section class="panel console-panel">
+      <div class="panel-header">
+        <div class="header-left">
+          <i data-lucide="terminal"></i>
+          <h2>Live Stream Console</h2>
+        </div>
+        <div class="console-actions">
+          <button id="clear-console-btn" class="btn btn-text">Clear</button>
+          <button id="autoscroll-toggle" class="btn btn-text active">Autoscroll</button>
+        </div>
+      </div>
+      <div class="console-body" id="console-output">
+        <div class="console-line system-line">[SYSTEM] Waiting for scraping job to start...</div>
+      </div>
+    </section>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

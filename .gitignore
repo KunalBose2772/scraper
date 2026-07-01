@@ -1,0 +1,7 @@
+node_modules/
+dist/
+output/
+*.log
+logs.txt
+config.json
+.DS_Store
